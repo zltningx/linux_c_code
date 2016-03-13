@@ -12,7 +12,9 @@
 #include<stdlib.h>
 
 #define MAX_STRING 80
-#define MAX_BLOCK 1024 * 1024
+#define MAX_BLOCK 2 * 1024 * 1024
+
+#define MAINLINE 6
 
 /*Data 区*/
 
@@ -23,7 +25,14 @@ struct PCB {
 
 char *none_process_menu[] = {
     "Add new process",
-    "Quit"
+    "Quit",
+    0,
+};
+
+char *no_running_menu[] = {
+    "Add new process",
+    "Wake_blocked_process",
+    "Quit",
     0,
 };
 
@@ -38,17 +47,26 @@ char *menu[] = {
 };
 
 //目标进程
-static char current_process = "\0";
+
+static char current_process[10] = "\0";
 
 /*原型区*/
 
-void clean_all_screen();
-int getchoice(char *greet,char *choices[]);
+void clean_all_screen(struct PCB *ready,struct PCB *blocking);
+int getchoice(char *greet,char *choices[],struct PCB *ready,struct PCB *blocking);
 void draw_menu(char *options[], int current_row, int start_screenrow, int start_screencol);
 void add(struct PCB *head, struct PCB *process);
 struct PCB * creat_process();
 struct PCB * creat_head();
 void getstring(char *string);
+void into_running(struct PCB *ready,struct PCB *running);
+int is_empty(struct PCB *head);
+void add(struct PCB *head, struct PCB *process);
+void ready_list_adder(struct PCB *ready,struct PCB *blocking);
+void set_process_blocking_or_time_slice(struct PCB *running,struct PCB *list);
+void free_running_process(struct PCB *running);
+void wake_blocked_process(struct PCB *ready,struct PCB *blocking);
+void print_process_name(struct PCB *head,int col);
 
 /*main 函数*/
 
@@ -59,11 +77,34 @@ main()
     initscr();
     struct PCB *ready,*blocking,*running;
     ready = creat_head();
-    blocking = creat_head;
-    running = creat_head;
+    blocking = creat_head();
+    running = creat_head();
 
     do{
-        choice = getchoice("Options:",menu);
+        into_running(ready,running);
+        if(is_empty(ready) && !is_empty(blocking) && is_empty(running)){
+            strcpy(current_process,"\0");
+            choice = getchoice("Options:",no_running_menu,ready,blocking);
+        } else {
+            choice = getchoice("Options:",current_process[0] ? menu : none_process_menu,ready,blocking);
+        }
+        switch(choice){
+            case 'A':
+                ready_list_adder(ready,blocking);
+                break;
+            case 'P':
+                set_process_blocking_or_time_slice(running,blocking);
+                break;
+            case 'W':
+                wake_blocked_process(ready,blocking);
+                break;
+            case 'T':
+                set_process_blocking_or_time_slice(running,ready);
+                break;
+            case 'E':
+                free_running_process(running);
+                break;
+        }
     }while (choice != 'Q');
     endwin();
     exit(EXIT_SUCCESS);
@@ -72,14 +113,14 @@ main()
 /*curses 界面绘制区*/
 
 int
-getchoice(char *greet,char *choices[])
+getchoice(char *greet,char *choices[],struct PCB *ready,struct PCB *blocking)
 {
     static int screen_row = 0;
     int key;
     char **options = choices;
     int max_row = 0;
     int selected;
-    int start_screenrow = 6;
+    int start_screenrow = MAINLINE;
     int start_screencol = 10;
 
     while (*options){
@@ -90,7 +131,7 @@ getchoice(char *greet,char *choices[])
     if (screen_row >= max_row)
         selected = 0;
 
-    clean_all_screen();
+    clean_all_screen(ready,blocking);
     mvprintw(start_screenrow-2, start_screencol,greet);
 
     keypad(stdscr,TRUE);
@@ -98,7 +139,7 @@ getchoice(char *greet,char *choices[])
     noecho();
     key = 0;
 
-    while (key != 'Q' && key != KEY_ENTER && key != '\n'){
+    while (key != 'q' && key != KEY_ENTER && key != '\n'){
         if (key == KEY_UP){
             if (screen_row == 0)
                 screen_row = max_row - 1;
@@ -120,7 +161,7 @@ getchoice(char *greet,char *choices[])
     nocbreak();
     echo();
 
-    if (key == 'Q'){
+    if (key == 'q'){
         selected = 'Q';
     }
 
@@ -147,21 +188,25 @@ draw_menu(char *options[], int current_row, int start_screenrow, int start_scree
         option_ptr++;
     }
     mvprintw (start_screenrow + current_rr + 3,start_screencol,"Move highlight then press return");
-    //mvprintw(start_screenrow + 13, 0,"Current in CPU process is: %s",current_process);
-
     refresh();
 
 }
 
 void
-clean_all_screen()
+clean_all_screen(struct PCB *ready,struct PCB *blocking)
 {
     clear();
 
     mvprintw(2,20,"%s","Process CTRL System");
     if (current_process[0]){
         mvprintw(22,0,"Current process is: %s",current_process);
+    } else {
+        mvprintw(22,0,"No porcess running now!");
     }
+    mvprintw(23,0,"ready: ");
+    print_process_name(ready,0);
+    mvprintw(23,30,"blocking: ");
+    print_process_name(blocking,40);
     refresh();
 }
 
@@ -175,7 +220,21 @@ getstring(char *string)
         string[len - 1] = '\0';
 }
 
-/*创建进程区*/
+void 
+print_process_name(struct PCB *head,int col)
+{
+    struct PCB *tmp = head;
+    int i = 0;
+    if(!is_empty(head)){
+        while (tmp->next != NULL){
+            tmp = tmp->next;
+            mvprintw(23 + i,10 + col,"%s",tmp->name);
+            i++;
+        }
+    }
+}
+
+/*进程功能辅助函数区*/
 
 struct PCB *
 creat_head()
@@ -185,19 +244,11 @@ creat_head()
     return head;
 }
 
-void
-ready_list_adder(struct PCB *ready)
-{
-    struct PCB *pro;
-    pro = (struct PCB *)malloc(sizeof(struct PCB));
-    getstring(pro.name);
-    add(ready,pro);
-}
-
 void 
 add(struct PCB *head, struct PCB *process)
 {
     struct PCB *tmp = head;
+
     while(tmp->next != NULL)
         tmp = tmp->next;
 
@@ -209,13 +260,69 @@ int
 is_empty(struct PCB *head)
 {
     if(head->next != NULL)
-        return 0
+        return 0;
     else 
-        return 1
+        return 1;
 }
 
-void
-into_running()
+void 
+into_running(struct PCB *ready,struct PCB *running)
 {
-    
+    if(is_empty(running) && !is_empty(ready)){
+        running->next = ready->next;
+        ready->next = ready->next->next;
+        strcpy(current_process,running->next->name);
+    }
+}
+
+
+/*功能实现区*/
+
+void
+ready_list_adder(struct PCB *ready,struct PCB *blocking)
+{
+    int screen_row = MAINLINE;
+    int screen_col = 10;
+
+    clean_all_screen(ready,blocking);
+
+    struct PCB *pro;
+    pro = (struct PCB *)malloc(sizeof(struct PCB));
+
+    mvprintw(screen_row,screen_col,"Enter this process's name: ");
+    getstring(pro->name);
+    add(ready,pro);
+}
+
+void 
+set_process_blocking_or_time_slice(struct PCB *running,struct PCB *list)
+{
+    struct PCB *process;
+    if (!is_empty(running)){
+        process = running->next;
+        running->next = NULL;
+        add(list,process);
+    }
+}
+
+void 
+free_running_process(struct PCB *running)
+{
+    if(!is_empty(running)){
+        free(running->next);
+        running->next = NULL;
+        strcpy(current_process,"\0");
+    }
+}
+
+
+void 
+wake_blocked_process(struct PCB *ready,struct PCB *blocking)
+{
+    struct PCB *process;
+    if(!is_empty(blocking)){
+        process = blocking->next;
+        blocking->next = blocking->next->next;
+        add(ready,process);
+    }
 }
