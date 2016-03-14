@@ -12,7 +12,7 @@
 #include<stdlib.h>
 
 #define MAX_STRING 80
-#define MAX_BLOCK 2 * 1024 * 1024
+#define MAX_BLOCK 1024 * 1024
 
 #define MAINLINE 6
 
@@ -20,6 +20,7 @@
 
 struct PCB {
     char name[10];
+    int kb;
     struct PCB *next;
 };
 
@@ -67,6 +68,7 @@ void set_process_blocking_or_time_slice(struct PCB *running,struct PCB *list);
 void free_running_process(struct PCB *running);
 void wake_blocked_process(struct PCB *ready,struct PCB *blocking);
 void print_process_name(struct PCB *head,int col);
+void free_all_process(struct PCB *head);
 
 /*main 函数*/
 
@@ -291,6 +293,8 @@ ready_list_adder(struct PCB *ready,struct PCB *blocking)
 
     mvprintw(screen_row,screen_col,"Enter this process's name: ");
     getstring(pro->name);
+    screen_row++;
+    mvprintw(screen_row,screen_col,"Enter this process's block: ");
     add(ready,pro);
 }
 
@@ -315,7 +319,6 @@ free_running_process(struct PCB *running)
     }
 }
 
-
 void 
 wake_blocked_process(struct PCB *ready,struct PCB *blocking)
 {
@@ -324,5 +327,19 @@ wake_blocked_process(struct PCB *ready,struct PCB *blocking)
         process = blocking->next;
         blocking->next = blocking->next->next;
         add(ready,process);
+    }
+}
+
+void 
+free_all_process(struct PCB *head)
+{
+    struct PCB *tmp = head,*ptr;
+    if(!is_empty(head)){
+        while(tmp->next != NULL){
+            ptr = tmp->next;
+            free(tmp);
+            tmp = ptr;
+        }
+        head->next = NULL;
     }
 }
