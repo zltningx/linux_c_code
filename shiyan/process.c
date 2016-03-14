@@ -26,8 +26,8 @@ struct PCB {
 
 char *none_process_menu[] = {
     "Add new process",
+    "Draw block mem",
     "Quit",
-    "",
     "",
     "",
     "",
@@ -38,6 +38,7 @@ char *no_running_menu[] = {
     "Add new process",
     "Wake_blocked_process",
     "Clean all Process",
+    "Draw block mem",
     "Quit",
     0,
 };
@@ -49,13 +50,14 @@ char *menu[] = {
     "Wake up the process",
     "End of the process",
     "Clean all process",
+    "Draw block mem",
     "Quit",
     0,
 };
 
-//目标进程
-
+//全局
 static char current_process[10] = "\0";
+static int memory[65];
 
 /*原型区*/
 
@@ -75,7 +77,8 @@ void free_running_process(struct PCB *running);
 void wake_blocked_process(struct PCB *ready,struct PCB *blocking);
 void print_process_name(struct PCB *head,int col);
 void free_all_process(struct PCB *head);
-
+void draw_block(struct PCB *ready,struct PCB *blocking);
+void init_memory();
 /*main 函数*/
 
 int 
@@ -83,6 +86,7 @@ main()
 {
     int choice;
     initscr();
+    init_memory();
     struct PCB *ready,*blocking,*running;
     ready = creat_head();
     blocking = creat_head();
@@ -116,6 +120,9 @@ main()
                 free_running_process(running);
                 free_all_process(ready);
                 free_all_process(blocking);
+                break;
+            case 'D':
+                draw_block(ready,blocking);
                 break;
         }
     }while (choice != 'Q');
@@ -265,6 +272,14 @@ print_process_name(struct PCB *head,int col)
 }
 
 /*进程功能辅助函数区*/
+void
+init_memory()
+{
+    int i = 0;
+    for(; i < 65; i++){
+        memory[i] = 0;
+    }
+}
 
 struct PCB *
 creat_head()
@@ -303,6 +318,13 @@ into_running(struct PCB *ready,struct PCB *running)
         ready->next = ready->next->next;
         strcpy(current_process,running->next->name);
     }
+}
+
+void
+enter_memory(int size)
+{
+    if (size < 0)
+        return;
 }
 
 /*功能实现区*/
@@ -372,4 +394,28 @@ free_all_process(struct PCB *head)
         }
         head->next = NULL;
     }
+}
+
+/*内存回收绘图区*/
+void
+draw_block(struct PCB *ready,struct PCB *blocking)
+{
+    WINDOW *box_window_ptr;
+    WINDOW *sub_window_ptr;
+    int screen_line = 1;
+
+    clean_all_screen(ready,blocking);
+
+    box_window_ptr = subwin(stdscr,13,32,7,1);
+    if(!box_window_ptr)
+        return;
+    box(box_window_ptr,ACS_VLINE,ACS_HLINE);
+    sub_window_ptr = subwin(stdscr,11,30,8,2);
+    if(!sub_window_ptr)
+        return;
+    werase(sub_window_ptr);
+    touchwin(stdscr);
+    clrtoeol();
+    refresh();
+    sleep(2);
 }
