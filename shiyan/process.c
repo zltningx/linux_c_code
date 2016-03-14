@@ -27,12 +27,17 @@ struct PCB {
 char *none_process_menu[] = {
     "Add new process",
     "Quit",
+    "",
+    "",
+    "",
+    "",
     0,
 };
 
 char *no_running_menu[] = {
     "Add new process",
     "Wake_blocked_process",
+    "Clean all Process",
     "Quit",
     0,
 };
@@ -43,6 +48,7 @@ char *menu[] = {
     "Process blocking",
     "Wake up the process",
     "End of the process",
+    "Clean all process",
     "Quit",
     0,
 };
@@ -105,6 +111,11 @@ main()
                 break;
             case 'E':
                 free_running_process(running);
+                break;
+            case 'C':
+                free_running_process(running);
+                free_all_process(ready);
+                free_all_process(blocking);
                 break;
         }
     }while (choice != 'Q');
@@ -191,7 +202,6 @@ draw_menu(char *options[], int current_row, int start_screenrow, int start_scree
     }
     mvprintw (start_screenrow + current_rr + 3,start_screencol,"Move highlight then press return");
     refresh();
-
 }
 
 void
@@ -222,6 +232,23 @@ getstring(char *string)
         string[len - 1] = '\0';
 }
 
+int 
+str_to_int(char *string)
+{
+    if(*string == '\0'){
+        return 0;
+    }
+    int sum = 0;
+    sum = *string - '0';
+    string++;
+    while(*string != '\0'){
+        sum *= 10;
+        sum += (*string - '0');
+        string++;
+    }
+    return sum;
+}
+
 void 
 print_process_name(struct PCB *head,int col)
 {
@@ -231,6 +258,7 @@ print_process_name(struct PCB *head,int col)
         while (tmp->next != NULL){
             tmp = tmp->next;
             mvprintw(23 + i,10 + col,"%s",tmp->name);
+            mvprintw(23 + i,10 + col + 10,"%d",tmp->kb);
             i++;
         }
     }
@@ -277,7 +305,6 @@ into_running(struct PCB *ready,struct PCB *running)
     }
 }
 
-
 /*功能实现区*/
 
 void
@@ -285,6 +312,7 @@ ready_list_adder(struct PCB *ready,struct PCB *blocking)
 {
     int screen_row = MAINLINE;
     int screen_col = 10;
+    char buf[10];
 
     clean_all_screen(ready,blocking);
 
@@ -295,6 +323,8 @@ ready_list_adder(struct PCB *ready,struct PCB *blocking)
     getstring(pro->name);
     screen_row++;
     mvprintw(screen_row,screen_col,"Enter this process's block: ");
+    getstring(buf);
+    pro->kb = str_to_int(buf);
     add(ready,pro);
 }
 
