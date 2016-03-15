@@ -17,9 +17,16 @@
 #define MAINLINE 6
 
 /*Data 区*/
+struct Free_blk{
+    int length;
+    int addr;
+    struct Free_blk *prior;
+    struct Free_blk *next;
+};
 
 struct PCB {
     char name[10];
+    int p_addr;
     int kb;
     struct PCB *next;
 };
@@ -78,7 +85,7 @@ void wake_blocked_process(struct PCB *ready,struct PCB *blocking);
 void print_process_name(struct PCB *head,int col);
 void free_all_process(struct PCB *head);
 void draw_block(struct PCB *ready,struct PCB *blocking);
-void init_memory();
+struct Free_blk * init_memory();
 /*main 函数*/
 
 int 
@@ -272,15 +279,6 @@ print_process_name(struct PCB *head,int col)
 }
 
 /*进程功能辅助函数区*/
-void
-init_memory()
-{
-    int i = 0;
-    for(; i < 65; i++){
-        memory[i] = 0;
-    }
-}
-
 struct PCB *
 creat_head()
 {
@@ -320,11 +318,94 @@ into_running(struct PCB *ready,struct PCB *running)
     }
 }
 
+/*内存管理区*/
+
 void
-enter_memory(int size)
+insert_free_blk(struct Free_blk *fb,struct Free_blk *new)
 {
-    if (size < 0)
-        return;
+    int flag = 0;
+    struct Free_blk *ptr = fb;
+    while(ptr->next != NULL){
+        if (ptr->next->length >= new->length){
+            ptr->next->prior = new;
+            new->next = ptr->next;
+            new->prior = ptr;
+            ptr->next = new;
+            flag = 1;
+            break;
+        }
+        ptr = ptr->next;
+    }
+    if (!flag){
+        ptr->next = new;
+        new->prior = ptr;
+        new->next = NULL;
+    }
+}
+
+struct Free_blk *
+init_memory()
+{
+    int i = 0;
+    for(; i < 65; i++){
+        memory[i] = 0;
+    }
+    struct Free_blk *fb,*new;
+    fb = (struct Free_blk *)malloc(sizeof(struct Free_blk));
+    new = (struct Free_blk *)malloc(sizeof(struct Free_blk));
+    fb->next = new;
+    fb->prior = NULL;
+    new->addr = 0;
+    new->length = 64;
+    new->next = NULL;
+    new->prior = fb;
+    return fb;
+}
+
+void
+enter_mem(struct PCB *head)
+{
+    int i;
+    for(i = head->p_addr; i < head->kb; i++)
+        memory[i] = 1;
+}
+
+void
+free_men(struct Free_blk *fb,struct PCB *process)
+{
+    int i;
+    struct Free_blk *tmp;
+
+}
+
+int
+add_mem(struct Free_blk *fb,int size)
+{
+    int tmp_addr;
+    struct Free_blk *ptr = fb->next;
+    if(size > 64){
+        mvprintw(22,0,"Out of Memory");
+        refresh();
+        return -1;
+    }
+    while (ptr->next != NULL){
+        if(ptr->length == size){
+            ptr->prior->next = ptr->next;
+            ptr->next->prior = ptr->prior;
+            tmp_addr = ptr->addr;
+            free(ptr);
+            return tmp_addr;
+        } else if(ptr->length > size){
+            tmp_addr = ptr->addr;
+            ptr->addr = tmp_addr + size;
+            ptr->length -= size;
+            return tmp_addr;
+        } 
+        ptr = ptr->next;
+    }
+    mvprintw(22,0,"Out of Memory");
+    refresh();
+    return -1;
 }
 
 /*功能实现区*/
