@@ -68,8 +68,9 @@ static int memory[65];
 
 /*原型区*/
 
-void clean_all_screen(struct PCB *ready,struct PCB *blocking);
-int getchoice(char *greet,char *choices[],struct PCB *ready,struct PCB *blocking);
+void prints(struct Free_blk *fb);
+void clean_all_screen(struct PCB *ready,struct PCB *blocking,struct Free_blk *fb);
+int getchoice(char *greet,char *choices[],struct PCB *ready,struct PCB *blocking,struct Free_blk *fb);
 void draw_menu(char *options[], int current_row, int start_screenrow, int start_screencol);
 void add(struct PCB *head, struct PCB *process);
 struct PCB * creat_process();
@@ -78,12 +79,13 @@ void getstring(char *string);
 void into_running(struct PCB *ready,struct PCB *running);
 int is_empty(struct PCB *head);
 void add(struct PCB *head, struct PCB *process);
-void ready_list_adder(struct PCB *ready,struct PCB *blocking);
+void ready_list_adder(struct PCB *ready,struct PCB *blocking,struct Free_blk *fb);
 void set_process_blocking_or_time_slice(struct PCB *running,struct PCB *list);
-void free_running_process(struct PCB *running);
+void free_running_process(struct Free_blk *fb,struct PCB *running);
 void wake_blocked_process(struct PCB *ready,struct PCB *blocking);
 void print_process_name(struct PCB *head,int col);
 void free_all_process(struct PCB *head);
+void free_all_fb(struct Free_blk *fb);
 void draw_block(struct PCB *ready,struct PCB *blocking);
 struct Free_blk * init_memory();
 /*main 函数*/
@@ -93,8 +95,9 @@ main()
 {
     int choice;
     initscr();
-    init_memory();
     struct PCB *ready,*blocking,*running;
+    struct Free_blk *fb;
+    fb = init_memory();
     ready = creat_head();
     blocking = creat_head();
     running = creat_head();
@@ -103,13 +106,13 @@ main()
         into_running(ready,running);
         if(is_empty(ready) && !is_empty(blocking) && is_empty(running)){
             strcpy(current_process,"\0");
-            choice = getchoice("Options:",no_running_menu,ready,blocking);
+            choice = getchoice("Options:",no_running_menu,ready,blocking,fb);
         } else {
-            choice = getchoice("Options:",current_process[0] ? menu : none_process_menu,ready,blocking);
+            choice = getchoice("Options:",current_process[0] ? menu : none_process_menu,ready,blocking,fb);
         }
         switch(choice){
             case 'A':
-                ready_list_adder(ready,blocking);
+                ready_list_adder(ready,blocking,fb);
                 break;
             case 'P':
                 set_process_blocking_or_time_slice(running,blocking);
@@ -121,12 +124,13 @@ main()
                 set_process_blocking_or_time_slice(running,ready);
                 break;
             case 'E':
-                free_running_process(running);
+                free_running_process(fb,running);
                 break;
             case 'C':
-                free_running_process(running);
+                free_running_process(fb,running);
                 free_all_process(ready);
                 free_all_process(blocking);
+                free_all_fb(fb);
                 break;
             case 'D':
                 draw_block(ready,blocking);
@@ -140,7 +144,7 @@ main()
 /*curses 界面绘制区*/
 
 int
-getchoice(char *greet,char *choices[],struct PCB *ready,struct PCB *blocking)
+getchoice(char *greet,char *choices[],struct PCB *ready,struct PCB *blocking,struct Free_blk *fb)
 {
     static int screen_row = 0;
     int key;
@@ -158,7 +162,7 @@ getchoice(char *greet,char *choices[],struct PCB *ready,struct PCB *blocking)
     if (screen_row >= max_row)
         selected = 0;
 
-    clean_all_screen(ready,blocking);
+    clean_all_screen(ready,blocking,fb);
     mvprintw(start_screenrow-2, start_screencol,greet);
 
     keypad(stdscr,TRUE);
@@ -219,7 +223,7 @@ draw_menu(char *options[], int current_row, int start_screenrow, int start_scree
 }
 
 void
-clean_all_screen(struct PCB *ready,struct PCB *blocking)
+clean_all_screen(struct PCB *ready,struct PCB *blocking,struct Free_blk *fb)
 {
     clear();
 
@@ -233,6 +237,22 @@ clean_all_screen(struct PCB *ready,struct PCB *blocking)
     print_process_name(ready,0);
     mvprintw(23,30,"blocking: ");
     print_process_name(blocking,40);
+    
+    prints(fb);
+
+    int i;
+    int line = 40,col = 10;
+    for(i = 0;i < 64;i++){
+        mvprintw(line,col,"%d",memory[i]);
+        if ((i+1) % 8 == 0){
+            col++;
+            mvprintw(line,col,"\n");
+            line++;
+            col = 10;
+            continue;
+        }
+        col++;
+    }
     refresh();
 }
 
@@ -277,6 +297,18 @@ print_process_name(struct PCB *head,int col)
         }
     }
 }
+
+void prints(struct Free_blk *fb)
+{
+    struct Free_blk *tmp = fb;
+    int i = 0;
+        while(tmp->next != NULL){
+            tmp = tmp->next;
+            mvprintw(23+i,60,"%d   %d",tmp->addr,tmp->length);
+            i++;
+        }
+}
+
 
 /*进程功能辅助函数区*/
 struct PCB *
@@ -347,7 +379,7 @@ struct Free_blk *
 init_memory()
 {
     int i = 0;
-    for(; i < 65; i++){
+    for(; i < 64; i++){
         memory[i] = 0;
     }
     struct Free_blk *fb,*new;
@@ -366,7 +398,7 @@ void
 enter_mem(struct PCB *head)
 {
     int i;
-    for(i = head->p_addr; i < head->kb; i++)
+    for(i = head->p_addr; i < (head->p_addr + head->kb); i++)
         memory[i] = 1;
 }
 
@@ -376,75 +408,118 @@ free_men(struct Free_blk *fb,struct PCB *process)
     int front,rear,flag = 0;
     struct Free_blk *tmp,*ptr = fb,*ptr2 = fb;
     front = process->p_addr;
-    rear = front + process->kb;
+    rear = front + process->kb - 1;
     if (front > 0 && memory[front-1] == 0){
         while (ptr->next != NULL){
             ptr = ptr->next;
-            if ((ptr->addr + ptr->length) == (front - 1)){
-                ptr->length += process->kb;
-                ptr->prior->next = ptr->next;
-                ptr->next->prior = ptr->prior;
+            if ((ptr->addr + ptr->length) == front){
+                ptr->length =ptr->length + process->kb;
+                if (ptr->next == NULL){
+                    ptr->prior->next = NULL;
+                }
+                else{
+                    ptr->prior->next = ptr->next;
+                    ptr->next->prior = ptr->prior;
+                }
                 flag = 1;
                 break;
             }
+            if(flag)
+                break;
         }
-    } 
+    }
     if (rear < 63 && memory[rear+1] == 0){
         while (ptr2->next != NULL){
             ptr2 = ptr2->next;
-            if ((rear + 1) == ptr2->addr){
+            if (rear+1 == ptr2->addr){
                 if(flag){
                     ptr->length += ptr2->length;
-                    ptr2->prior->next = ptr2->next;
-                    ptr2->next->prior = ptr2->prior;
+                    if(ptr2->next == NULL){
+                        ptr2->prior->next = NULL;
+                    } else {
+                        ptr2->prior->next = ptr2->next;
+                        ptr2->next->prior = ptr2->prior;
+                    }
+                    free(ptr2);
+                    break;
+                } else {
+                    ptr2->addr = front;
+                    ptr2->length =ptr2->length + process->kb;
+                    if(ptr2->next == NULL){
+                        ptr2->prior->next = NULL;
+                    } else {
+                        ptr2->prior->next = ptr2->next;
+                        ptr2->next->prior = ptr2->prior;
+                    }
+                    flag = 2;
                     break;
                 }
             }
         }
     }
+    if (flag == 1)
+        insert_free_blk(fb,ptr);
+    else if (flag == 2)
+        insert_free_blk(fb,ptr2);
+    else {
+        tmp = (struct Free_blk *)malloc(sizeof(struct Free_blk));
+        tmp->addr = front;
+        tmp->length = process->kb;
+        insert_free_blk(fb,tmp);
+    }
 
+    int i;
+    for (i = front;i < rear + 1;i++){
+        memory[i] = 0;
+    }
 }
 
 int
-add_mem(struct Free_blk *fb,int size)
+add_mem(struct Free_blk *fb,struct PCB *process)
 {
     int tmp_addr;
-    struct Free_blk *ptr = fb->next;
-    if(size > 64){
-        mvprintw(22,0,"Out of Memory");
+    struct Free_blk *ptr = fb;
+    if(process->kb > 64){
+        mvprintw(30,60,"Out of Memory");
         refresh();
+        sleep(2);
         return -1;
     }
     while (ptr->next != NULL){
-        if(ptr->length == size){
-            ptr->prior->next = ptr->next;
-            ptr->next->prior = ptr->prior;
-            tmp_addr = ptr->addr;
-            free(ptr);
-            return tmp_addr;
-        } else if(ptr->length > size){
-            tmp_addr = ptr->addr;
-            ptr->addr = tmp_addr + size;
-            ptr->length -= size;
-            return tmp_addr;
-        } 
         ptr = ptr->next;
+        if(ptr->length == process->kb){
+            process->p_addr = ptr->addr;
+            if (ptr->next == NULL)
+                ptr->prior->next = NULL;
+            else{
+                ptr->prior->next = ptr->next;
+                ptr->next->prior = ptr->prior;
+                free(ptr);
+            }
+            return 0;
+        } else if(ptr->length > process->kb){
+            process->p_addr = ptr->addr;
+            ptr->addr = process->p_addr + process->kb;
+            ptr->length -= process->kb;
+            return 0;
+        }
     }
-    mvprintw(22,0,"Out of Memory");
+    mvprintw(30,60,"Memory Full now");
     refresh();
+    sleep(2);
     return -1;
 }
 
 /*功能实现区*/
 
 void
-ready_list_adder(struct PCB *ready,struct PCB *blocking)
+ready_list_adder(struct PCB *ready,struct PCB *blocking,struct Free_blk *fb)
 {
     int screen_row = MAINLINE;
     int screen_col = 10;
     char buf[10];
 
-    clean_all_screen(ready,blocking);
+    clean_all_screen(ready,blocking,fb);
 
     struct PCB *pro;
     pro = (struct PCB *)malloc(sizeof(struct PCB));
@@ -455,7 +530,13 @@ ready_list_adder(struct PCB *ready,struct PCB *blocking)
     mvprintw(screen_row,screen_col,"Enter this process's block: ");
     getstring(buf);
     pro->kb = str_to_int(buf);
-    add(ready,pro);
+    if (add_mem(fb,pro) < 0){
+        free(pro);
+        return;
+    } else {
+        add(ready,pro);
+        enter_mem(pro);
+    }
 }
 
 void 
@@ -470,9 +551,10 @@ set_process_blocking_or_time_slice(struct PCB *running,struct PCB *list)
 }
 
 void 
-free_running_process(struct PCB *running)
+free_running_process(struct Free_blk *fb,struct PCB *running)
 {
     if(!is_empty(running)){
+        free_men(fb,running->next);
         free(running->next);
         running->next = NULL;
         strcpy(current_process,"\0");
@@ -490,6 +572,21 @@ wake_blocked_process(struct PCB *ready,struct PCB *blocking)
     }
 }
 
+void
+free_all_fb(struct Free_blk *fb)
+{
+    struct Free_blk *tmp = fb,*ptr,*new;
+    while (tmp->next != NULL){
+        ptr = tmp->next;
+        free(tmp);
+        tmp = ptr;
+    }
+    new = (struct Free_blk *)malloc(sizeof(struct Free_blk));
+    fb->next = new;
+    new->prior = fb;
+    new->next = NULL;
+}
+
 void 
 free_all_process(struct PCB *head)
 {
@@ -505,20 +602,22 @@ free_all_process(struct PCB *head)
 }
 
 /*内存回收绘图区*/
+
 void
 draw_block(struct PCB *ready,struct PCB *blocking)
 {
     WINDOW *box_window_ptr;
     WINDOW *sub_window_ptr;
     int screen_line = 1;
+    int BOXED_LINES = 8,BOXED_ROWS = 20,BOX_LINE_POS = 42,BOX_ROW_POS = 2;
 
-    clean_all_screen(ready,blocking);
+    //clean_all_screen(ready,blocking);
 
-    box_window_ptr = subwin(stdscr,13,32,7,1);
+    box_window_ptr = subwin(stdscr,BOXED_LINES + 2,BOXED_ROWS + 2,BOX_LINE_POS - 1,BOX_ROW_POS - 1);
     if(!box_window_ptr)
         return;
     box(box_window_ptr,ACS_VLINE,ACS_HLINE);
-    sub_window_ptr = subwin(stdscr,11,30,8,2);
+    sub_window_ptr = subwin(stdscr,BOXED_LINES,BOXED_ROWS,BOX_LINE_POS,BOX_ROW_POS);
     if(!sub_window_ptr)
         return;
     werase(sub_window_ptr);
