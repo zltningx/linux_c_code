@@ -584,7 +584,14 @@ free_all_fb(struct Free_blk *fb)
     new = (struct Free_blk *)malloc(sizeof(struct Free_blk));
     fb->next = new;
     new->prior = fb;
+    new->addr = 0;
+    new->length = 64;
     new->next = NULL;
+
+    int i = 0;
+    for(; i < 64; i++){
+        memory[i] = 0;
+    }
 }
 
 void 
