@@ -27,6 +27,7 @@ struct Free_blk{
 struct PCB {
     char name[10];
     int p_addr;
+    long pid;
     int kb;
     struct PCB *next;
 };
@@ -65,6 +66,7 @@ char *menu[] = {
 //全局
 static char current_process[10] = "\0";
 static int memory[65];
+static long pid_count = 1;
 
 /*原型区*/
 
@@ -291,8 +293,9 @@ print_process_name(struct PCB *head,int col)
     if(!is_empty(head)){
         while (tmp->next != NULL){
             tmp = tmp->next;
-            mvprintw(23 + i,10 + col,"%s",tmp->name);
-            mvprintw(23 + i,10 + col + 10,"%d",tmp->kb);
+            mvprintw(24 + i,5 + col,"%d",tmp->pid);
+            mvprintw(24 + i,10 + col,"%s",tmp->name);
+            mvprintw(24 + i,10 + col + 10,"%d",tmp->kb);
             i++;
         }
     }
@@ -304,7 +307,7 @@ void prints(struct Free_blk *fb)
     int i = 0;
         while(tmp->next != NULL){
             tmp = tmp->next;
-            mvprintw(23+i,60,"%d   %d",tmp->addr,tmp->length);
+            mvprintw(23+i,65,"%d   %d",tmp->addr,tmp->length);
             i++;
         }
 }
@@ -534,6 +537,7 @@ ready_list_adder(struct PCB *ready,struct PCB *blocking,struct Free_blk *fb)
         free(pro);
         return;
     } else {
+        pro->pid = pid_count++;
         add(ready,pro);
         enter_mem(pro);
     }
