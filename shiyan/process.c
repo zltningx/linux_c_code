@@ -373,8 +373,35 @@ enter_mem(struct PCB *head)
 void
 free_men(struct Free_blk *fb,struct PCB *process)
 {
-    int i;
-    struct Free_blk *tmp;
+    int front,rear,flag = 0;
+    struct Free_blk *tmp,*ptr = fb,*ptr2 = fb;
+    front = process->p_addr;
+    rear = front + process->kb;
+    if (front > 0 && memory[front-1] == 0){
+        while (ptr->next != NULL){
+            ptr = ptr->next;
+            if ((ptr->addr + ptr->length) == (front - 1)){
+                ptr->length += process->kb;
+                ptr->prior->next = ptr->next;
+                ptr->next->prior = ptr->prior;
+                flag = 1;
+                break;
+            }
+        }
+    } 
+    if (rear < 63 && memory[rear+1] == 0){
+        while (ptr2->next != NULL){
+            ptr2 = ptr2->next;
+            if ((rear + 1) == ptr2->addr){
+                if(flag){
+                    ptr->length += ptr2->length;
+                    ptr2->prior->next = ptr2->next;
+                    ptr2->next->prior = ptr2->prior;
+                    break;
+                }
+            }
+        }
+    }
 
 }
 
