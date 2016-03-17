@@ -580,6 +580,7 @@ void
 free_all_fb(struct Free_blk *fb)
 {
     struct Free_blk *tmp = fb,*ptr,*new;
+    tmp = tmp->next;
     while (tmp->next != NULL){
         ptr = tmp->next;
         free(tmp);
@@ -603,6 +604,7 @@ free_all_process(struct PCB *head)
 {
     struct PCB *tmp = head,*ptr;
     if(!is_empty(head)){
+        tmp = tmp->next;
         while(tmp->next != NULL){
             ptr = tmp->next;
             free(tmp);
