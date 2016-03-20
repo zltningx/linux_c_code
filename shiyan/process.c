@@ -490,7 +490,15 @@ add_mem(struct Free_blk *fb,struct PCB *process)
     }
     while (ptr->next != NULL){
         ptr = ptr->next;
-        if(ptr->length == process->kb){
+        if ((ptr->length - process->kb) <= 2){
+            process->kb = ptr->length;
+        }
+        if(ptr->length > process->kb){
+            process->p_addr = ptr->addr;
+            ptr->addr = process->p_addr + process->kb;
+            ptr->length -= process->kb;
+            return 0;
+        } else if (ptr->length == process->kb){
             process->p_addr = ptr->addr;
             if (ptr->next == NULL)
                 ptr->prior->next = NULL;
@@ -500,12 +508,8 @@ add_mem(struct Free_blk *fb,struct PCB *process)
                 free(ptr);
             }
             return 0;
-        } else if(ptr->length > process->kb){
-            process->p_addr = ptr->addr;
-            ptr->addr = process->p_addr + process->kb;
-            ptr->length -= process->kb;
-            return 0;
         }
+
     }
     mvprintw(30,60,"Memory Full now");
     refresh();
