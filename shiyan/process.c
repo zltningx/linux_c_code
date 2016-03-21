@@ -12,7 +12,6 @@
 #include<stdlib.h>
 
 #define MAX_STRING 80
-#define MAX_BLOCK 1024 * 1024
 
 #define MAINLINE 6
 
@@ -34,8 +33,8 @@ struct PCB {
 
 char *none_process_menu[] = {
     "Add new process",
-    "Draw block mem",
     "Quit",
+    "",
     "",
     "",
     "",
@@ -46,8 +45,8 @@ char *no_running_menu[] = {
     "Add new process",
     "Wake_blocked_process",
     "Clean all Process",
-    "Draw block mem",
     "Quit",
+    "",
     0,
 };
 
@@ -58,7 +57,6 @@ char *menu[] = {
     "Wake up the process",
     "End of the process",
     "Clean all process",
-    "Draw block mem",
     "Quit",
     0,
 };
@@ -88,7 +86,6 @@ void wake_blocked_process(struct PCB *ready,struct PCB *blocking);
 void print_process_name(struct PCB *head,int col);
 void free_all_process(struct PCB *head);
 void free_all_fb(struct Free_blk *fb);
-void draw_block(struct PCB *ready,struct PCB *blocking);
 struct Free_blk * init_memory();
 /*main 函数*/
 
@@ -133,9 +130,7 @@ main()
                 free_all_process(ready);
                 free_all_process(blocking);
                 free_all_fb(fb);
-                break;
-            case 'D':
-                draw_block(ready,blocking);
+                pid_count = 1;
                 break;
         }
     }while (choice != 'Q');
@@ -247,13 +242,13 @@ clean_all_screen(struct PCB *ready,struct PCB *blocking,struct Free_blk *fb)
     for(i = 0;i < 64;i++){
         mvprintw(line,col,"%d",memory[i]);
         if ((i+1) % 8 == 0){
-            col++;
+            col += 2;
             mvprintw(line,col,"\n");
             line++;
             col = 10;
             continue;
         }
-        col++;
+        col += 2;
     }
     refresh();
 }
@@ -490,7 +485,7 @@ add_mem(struct Free_blk *fb,struct PCB *process)
     }
     while (ptr->next != NULL){
         ptr = ptr->next;
-        if ((ptr->length - process->kb) <= 2){
+        if ((ptr->length - process->kb) <= 2 && ptr->length > process->kb){
             process->kb = ptr->length;
         }
         if(ptr->length > process->kb){
@@ -616,30 +611,4 @@ free_all_process(struct PCB *head)
         }
         head->next = NULL;
     }
-}
-
-/*内存回收绘图区*/
-
-void
-draw_block(struct PCB *ready,struct PCB *blocking)
-{
-    WINDOW *box_window_ptr;
-    WINDOW *sub_window_ptr;
-    int screen_line = 1;
-    int BOXED_LINES = 8,BOXED_ROWS = 20,BOX_LINE_POS = 42,BOX_ROW_POS = 2;
-
-    //clean_all_screen(ready,blocking);
-
-    box_window_ptr = subwin(stdscr,BOXED_LINES + 2,BOXED_ROWS + 2,BOX_LINE_POS - 1,BOX_ROW_POS - 1);
-    if(!box_window_ptr)
-        return;
-    box(box_window_ptr,ACS_VLINE,ACS_HLINE);
-    sub_window_ptr = subwin(stdscr,BOXED_LINES,BOXED_ROWS,BOX_LINE_POS,BOX_ROW_POS);
-    if(!sub_window_ptr)
-        return;
-    werase(sub_window_ptr);
-    touchwin(stdscr);
-    clrtoeol();
-    refresh();
-    sleep(2);
 }
