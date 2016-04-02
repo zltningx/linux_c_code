@@ -54,16 +54,17 @@ void get_null();
 void change_mem(Page_array page[], MemList *memlist,int page_num);
 int read_bit_chart(int bit_array[][8]);
 int loop_get_addr();
-int re_physical_addr(int physical_block,int page_in_addr);
+int re_physical_addr(int physical_block,int page_in_addr,int block_size);
 void lake_page(Page_array page[],MemList *memlist,int page_num);
 void init_message();
-void f_main_func(Page_array *page_fifo,Page_array *page_lru,MemList  *memlist_fifo,MemList *memlist_lru,int page_num,int page_in_addr,int memory_size,int bit_array[][8]);
+void f_main_func(Page_array *page_fifo,Page_array *page_lru,MemList  *memlist_fifo,MemList *memlist_lru,int page_num,int page_in_addr,int memory_size,int bit_array[][8],int block_size);
 page_list * init_page_list(page_list *pl);
 void p_append(page_list *pl,int num);
 int p_pop(page_list *pl);
 void opt_change_mem(Page_array *page_opt,MemList *memlist_opt,page_list *pl,int page_num,int memory_size);
 void s_main_func(Page_array *page_opt,MemList *memlist_opt,page_list *pl,int memory_size,int getnum);
 void draw_page_list(page_list *pl);
+int get_page_block_size();
 /* End of 原型声明*/
 
 /*Main*/
@@ -78,6 +79,7 @@ main(void)
     int page_size,memory_size;
     int addr,page_num,page_in_addr;
     int coun;
+    int block_size;
 
     //init
     init_bitmap(bit_array);
@@ -95,6 +97,7 @@ main(void)
     Init_page(page_opt,page_size);
     draw_clear(page_fifo,page_lru,page_opt,memlist_fifo,memlist_lru,memlist_opt,page_size);
     memory_size = get_mem_size();
+    block_size = get_page_block_size();
 
     //Loop
     do{
@@ -103,8 +106,8 @@ main(void)
         if (addr == -1) {
             break;
         }
-        page_in_addr = addr % 1024;
-        page_num = addr / 1024;
+        page_in_addr = addr % (1024 * block_size);
+        page_num = addr / (1024 * block_size);
 
         if (page_num >= page_size){
             mvprintw(6,40,"%s","Out Of Memory!");
@@ -114,7 +117,7 @@ main(void)
         }
         p_append(pl,page_num);
         //LRU  && FIFO
-        f_main_func(page_fifo,page_lru,memlist_fifo,memlist_lru,page_num,page_in_addr,memory_size,bit_array);
+        f_main_func(page_fifo,page_lru,memlist_fifo,memlist_lru,page_num,page_in_addr,memory_size,bit_array,block_size);
 
     } while(1);
 
@@ -188,7 +191,9 @@ opt_change_mem(Page_array *page_opt,MemList *memlist_opt,page_list *pl,int page_
             max_p = p;
         }
     }
-    
+    if (max == -1)
+        max_p = p;
+
     page_opt[max_p->m_page_num].status = 0;
     page_opt[page_num].status = 1;
     max_p->m_page_num = page_num;
@@ -414,7 +419,7 @@ draw_message()
 {
     float tmp;
     mvprintw(9,50,"FIFO message");
-    mvprintw(10,50,"%s%d","Local:",fifo.physical_addr);
+    mvprintw(10,50,"%s%x","Local:",fifo.physical_addr);
     mvprintw(11,50,"%s%d","Visited:",fifo.change_num);
     mvprintw(12,50,"%s%d","Absent:",fifo.miss_page_num);
     if (fifo.change_num != 0){
@@ -423,7 +428,7 @@ draw_message()
     }
 
     mvprintw(9,80,"LRU message");
-    mvprintw(10,80,"%s%d","Local:",lru.physical_addr);
+    mvprintw(10,80,"%s%x","Local:",lru.physical_addr);
     mvprintw(11,80,"%s%d","Visited:",lru.change_num);
     mvprintw(12,80,"%s%d","Absent:",lru.miss_page_num);
     if (lru.change_num != 0){
@@ -502,9 +507,9 @@ str_to_int(char *string)
 }
 
 int 
-re_physical_addr(int physical_block,int page_in_addr)
+re_physical_addr(int physical_block,int page_in_addr,int block_size)
 {
-    return physical_block * 1024 + page_in_addr;
+    return physical_block * 1024 * block_size + page_in_addr;
 }
 
 int hex_to_dec(char*s)
@@ -578,6 +583,21 @@ get_mem_size()
     return size;
 }
 
+int
+get_page_block_size()
+{
+    int screen_row = 6;
+    int screen_col = 10;
+    int size;
+    char buf[20];
+
+    mvprintw(screen_row,screen_col,"Enter Page Block size>>> ");
+    getstring(buf);
+    size = str_to_int(buf);
+    refresh();
+    return size;
+}
+
 int 
 loop_get_addr()
 {
@@ -624,15 +644,15 @@ lake_page(Page_array page[],MemList *memlist,int page_num)
 
 /*Main Function*/
 void 
-f_main_func(Page_array *page_fifo,Page_array *page_lru,MemList  *memlist_fifo,MemList *memlist_lru,int page_num,int page_in_addr,int memory_size,int bit_array[][8])
+f_main_func(Page_array *page_fifo,Page_array *page_lru,MemList  *memlist_fifo,MemList *memlist_lru,int page_num,int page_in_addr,int memory_size,int bit_array[][8],int block_size)
 {
     //命中
     if (page_fifo[page_num].status == 1){
-        fifo.physical_addr = re_physical_addr(page_fifo[page_num].block_num,page_in_addr);
+        fifo.physical_addr = re_physical_addr(page_fifo[page_num].block_num,page_in_addr,block_size);
         fifo.change_num += 1;
     }
     if (page_lru[page_num].status == 1) {
-        lru.physical_addr = re_physical_addr(page_lru[page_num].block_num,page_in_addr);
+        lru.physical_addr = re_physical_addr(page_lru[page_num].block_num,page_in_addr,block_size);
         lru.change_num += 1;
         change_mem(page_lru, memlist_lru,page_num);
     }
@@ -645,8 +665,8 @@ f_main_func(Page_array *page_fifo,Page_array *page_lru,MemList  *memlist_fifo,Me
         append(memlist_fifo,page_num);
         append(memlist_lru,page_num);
 
-        fifo.physical_addr = re_physical_addr(page_fifo[page_num].block_num,page_in_addr);
-        lru.physical_addr = re_physical_addr(page_lru[page_num].block_num,page_in_addr);
+        fifo.physical_addr = re_physical_addr(page_fifo[page_num].block_num,page_in_addr,block_size);
+        lru.physical_addr = re_physical_addr(page_lru[page_num].block_num,page_in_addr,block_size);
         fifo.change_num += 1;
         fifo.miss_page_num += 1;
         lru.change_num += 1;
@@ -654,14 +674,14 @@ f_main_func(Page_array *page_fifo,Page_array *page_lru,MemList  *memlist_fifo,Me
     }
     //未命中
     if (page_fifo[page_num].status == 0) {
-        fifo.physical_addr = re_physical_addr(memlist_fifo->m_page_num,page_in_addr);
+        fifo.physical_addr = re_physical_addr(memlist_fifo->m_page_num,page_in_addr,block_size);
         fifo.change_num += 1;
         fifo.miss_page_num += 1;
         page_fifo[page_num].status = 1;
         lake_page(page_fifo,memlist_fifo,page_num);
     }
     if (page_lru[page_num].status == 0) {
-        lru.physical_addr = re_physical_addr(memlist_lru->m_page_num,page_num);
+        lru.physical_addr = re_physical_addr(memlist_lru->m_page_num,page_num,block_size);
         lru.change_num += 1;
         lru.miss_page_num += 1;
         page_lru[page_num].status = 1;
