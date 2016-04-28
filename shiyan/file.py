@@ -46,14 +46,16 @@ class SuperBlock:
         print (Bcolors.BOLD + "Super : {}".format(self.block_num) + Bcolors.ENDC)
         for i in range(10):
             try:
-                print ("| {} |                  | {} |".format(self.sup[i].addr, self.sup[0].next_group[i].addr))
+                print ("| {} |                  | {} |"\
+                       .format(self.sup[i].addr, self.sup[0].next_group[i].addr))
             except:
                 try:
-                    print ("| {} |                  | {} |".format(" " * len(str(self.sup[0].addr)),\
-                                                                   self.sup[0].next_group[i].addr))
+                    print ("| {} |                  | {} |"\
+                           .format(" " * len(str(self.sup[0].addr)), self.sup[0].next_group[i].addr))
                 except:
                     print ("| {} |                  | {} |"\
-                           .format(" " * len(str(self.sup[0].addr))), " "*len(str(self.sup[0].next_group[0].addr)))
+                           .format(" " * len(str(self.sup[0].addr))),
+                           " "*len(str(self.sup[0].next_group[0].addr)))
 
 class BlockManage(SuperBlock):
     class _Block:
@@ -103,7 +105,7 @@ class Inode:
         cout = 0
         temp = self.block_list
         num = len(temp)
-        print (Bcolors.BOLD+"inode infomation:\ntotal block: {} ".format(num)+Bcolors.ENDC)
+        print (Bcolors.BOLD+"inode infomation\ntotal block: {} ".format(num)+Bcolors.ENDC)
         for i in range(num):
             l.append(temp[i].addr)
             if i <= 9:
@@ -162,7 +164,7 @@ class Linkedfile:
             self.inode = Inode(self.size, block_list)
 
     def __init__(self):
-        self.head = self._Node("root", 0, -1, None, None, None)
+        self.head = self._Node("root", 0, -1, self, None, self)
 
         self.dian = self._Node(".", 0, 2, self.head, None, self)
         self.diandian = self._Node("..", 0, 2, self.dian, None, self)
@@ -192,7 +194,10 @@ class Linkedfile:
     def append(self, block_list, name, size, type = 1, dir=None):
         #尾插法
         temp = self.head
-        new = self._Node(name, size, type, None, None, dir)
+        if dir == None:
+            new = self._Node(name, size, type, None, None, self)
+        else:
+            new = self._Node(name, size, type, None, None, dir)
         new.set_inode(block_list)
 
         while temp.next is not None:
@@ -210,6 +215,10 @@ class Linkedfile:
                     if temp.type == 2:
                         print (Bcolors.FAIL + "Error: {} is not a file. omit it".format(name))
                         return True, None
+                if type == 2:
+                    if temp.type == 2 and temp.dir.diandian.next is not None:
+                        print (Bcolors.FAIL + "Error: {} is not a empty file. omit it".format(name))
+                        return True, None
                 block_list = temp.inode.ret_block()
                 pre = temp.prior
                 succ = temp.next
@@ -225,11 +234,9 @@ class Linkedfile:
             temp = temp.next
             if not temp.name.startswith("."):
                 if temp.type == 1:
-                    print ("- {:<5d} {} {}".format(temp.size, \
-                                                          temp.datetime, temp.name))
+                    print ("- {:<5d} {} {}".format(temp.size, temp.datetime, temp.name))
                 if temp.type == 2:
-                    print ("d {:<5d} {} ".format(temp.size, \
-                                                        temp.datetime), end='')
+                    print ("d {:<5d} {} ".format(temp.size, temp.datetime), end='')
                     print (Bcolors.OKBLUE + "{}/".format(temp.name) + Bcolors.ENDC)
 
     def show_all(self):
@@ -237,11 +244,9 @@ class Linkedfile:
         while temp.next != None:
             temp = temp.next
             if temp.type == 1:
-                print ("- {:<5d} {} {}".format(temp.size,\
-                                                        temp.datetime, temp.name))
+                print ("- {:<5d} {} {}".format(temp.size, temp.datetime, temp.name))
             if temp.type == 2:
-                    print ("d {:<5d} {} ".format(temp.size,\
-                                                          temp.datetime), end='')
+                    print ("d {:<5d} {} ".format(temp.size, temp.datetime), end='')
                     print (Bcolors.OKBLUE + "{}/".format(temp.name) + Bcolors.ENDC)
 
 class Os:
@@ -343,7 +348,7 @@ class Os:
 
             for name in opt:
                 if name != "." and name != "..":
-                    flag = self.workpath.delete_node(name, 2)
+                    flag, block_list = self.workpath.delete_node(name, 2)
                     if not flag:
                         print (Bcolors.FAIL + "Error: {} not exist".format(name))
                     if block_list is not None:
@@ -373,18 +378,39 @@ class Os:
                     print (Bcolors.FAIL + "Error: {} not exist".format(name))
                 if block_list is not None:
                     self.block.re_blocks(block_list)
-            
-    def tree(self, workpath, blank):
-        temp = workpath.head
+    
+    def tree(self, workpath, lis):
+        temp = workpath.diandian
         while temp.next is not None:
             temp = temp.next
-            if temp.name.startswith('.'):
-                continue
-            if temp.type == 2:
-                print ("  " * blank + "|___" + Bcolors.OKBLUE + temp.name + '/' + Bcolors.ENDC)
-                self.tree(temp.dir, blank+2)
+            if temp.next is None:
+                for i in range(lis[len(lis) - 1]):
+                    if i in lis:
+                        print ("│", end='')
+                    else:
+                        print (" ", end='')
+                if temp.type == 2:
+                    print ("└──" + Bcolors.OKBLUE + temp.name + '/' + Bcolors.ENDC)
+                    a = lis.pop()
+                    lis.append(a+3)
+                    self.tree(temp.dir, lis)
+                    a = lis.pop()
+                    lis.append(a-3)
+                else:
+                    print ("└──" + temp.name)
             else:
-                print ("  " * blank + "|___" + temp.name)
+                for i in range(lis[len(lis) - 1]):
+                    if i in lis:
+                        print ("│", end='')
+                    else:
+                        print (" ", end='')
+                if temp.type == 2:
+                    print ("├──" + Bcolors.OKBLUE + temp.name + '/' + Bcolors.ENDC)
+                    lis.append(lis[len(lis) - 1] + 3)
+                    self.tree(temp.dir, lis)
+                    lis.pop()
+                else:
+                    print ("├──" + temp.name)
 
     def show(self, opt):
         if len(opt) < 2:
@@ -416,7 +442,6 @@ class Os:
                 current_name.append(temp.name)
 
         return current_name
-
 
 class Bcolors:
     HEADER = '\033[95m'
@@ -453,7 +478,8 @@ if __name__ == '__main__':
                     shell.ls(cmd)
                     shell.get_path()
                 elif c == 5:
-                    shell.tree(shell.workpath, 2)
+                    lis = [1]
+                    shell.tree(shell.workpath, lis)
                 elif c == 6:
                     os.system('clear')
                 elif c == 7:
