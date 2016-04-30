@@ -332,8 +332,9 @@ class Os:
                 if temp.name == c:
                     flag = 1
                     if temp.type != 2:
-                        return Bcolors.FAIL + "Error: {} is not dirent".format(c)
-                    self.workpath = temp.dir
+                        print (Bcolors.FAIL + "Error: {} is not dirent".format(c))
+                    else:
+                        self.workpath = temp.dir
             if not flag:
                 print (Bcolors.FAIL + "Error: {} not exist".format(c))
 
