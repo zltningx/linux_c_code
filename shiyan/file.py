@@ -4,16 +4,35 @@
 import re
 import os
 from datetime import datetime
+from collections import deque
 
-BLOCK_NUM = 1000
+BLOCK_NUM = 10000
 
+def count_inode(num):
+    if num <= 10:
+        return 0
+    elif num > 10 and num < 16:
+        return 1
+    elif num > 15 and num < 41:
+        n = (num - 16) // 5
+        if n < 0:
+            n = 0
+        return n + 3
+    elif num > 40:
+        count = 7 + 3
+        n = (num - 41) // 5
+        if n < 0:
+            n = 0
+        if n % 5 == 0 and n != 0:
+            count += 1
+        return n + count
 
 class SuperBlock:
     __slots__ = 'sup', 'block_num'
     def __init__(self, block):
         '''
         block 是 Block 类的列表
-        sup 是 超级块栈 存100个块 
+        sup 是 超级块栈 存10个块 
         '''
         self.sup = block
         self.block_num = 10
@@ -92,15 +111,44 @@ class BlockManage(SuperBlock):
         '''
 
 class Inode:
-    __slots__ = 'length', 'block_list'
+    __slots__ = 'length', 'block_list','node'
     def __init__(self, length, block_list):
         self.length = length
         self.block_list= block_list
+        self.node = deque()
+        for i in range(count_inode(length)):
+            self.node.append(block_list.pop())
 
     def ret_block(self):
+        for i in self.node:
+            self.block_list.append(i)
         return self.block_list
 
     def show_block(self):
+        t = 0
+        temp = self.block_list
+        for i in range(len(temp)):
+            n = count_inode(i+1)
+            if t != n:
+                if n - t > 1:
+                    for h in range(t, n):
+                        print (Bcolors.BOLD + Bcolors.OKGREEN\
+                               + "Index Node: {}".format(self.node[h].addr) + Bcolors.ENDC)
+                else:
+                    print (Bcolors.BOLD + Bcolors.OKGREEN\
+                           + "Index Node: {}".format(self.node[n-1].addr) + Bcolors.ENDC)
+                t = n
+            if i > 9 and i <= 14:
+                print (Bcolors.BOLD + "\t{}".format(temp[i].addr))
+            elif i > 14 and i <= 39:
+                print (Bcolors.BOLD + "\t\t{}".format(temp[i].addr))
+            elif i > 39:
+                print (Bcolors.BOLD + "\t\t\t{}".format(temp[i].addr))
+            else:
+                print (Bcolors.BOLD + "{}".format(temp[i].addr))
+
+
+    def show_blocks(self):
         l = list()
         cout = 0
         temp = self.block_list
@@ -114,6 +162,7 @@ class Inode:
                 print (Bcolors.BOLD + "Single List: " + Bcolors.ENDC)
                 l = list()
             if i <= 12 and i > 9:
+                print ("  index node: {}".format(self.node.popleft().addr), end='')
                 print ("\t\t| {} |".format(temp[i].addr))
             if i == 12:
                 print (Bcolors.BOLD + "Double List:" + Bcolors.ENDC)
@@ -303,7 +352,7 @@ class Os:
                 print(Bcolors.FAIL + "Error: not enough disk")
                 return 
             if not self.workpath.is_exist(opt[1]):
-                block_list = self.block.get_blocks(int(opt[2]))
+                block_list = self.block.get_blocks(int(opt[2]) + count_inode(int(opt[2])))
                 self.workpath.append(block_list, opt[1], int(opt[2]))
         else:
             print(Bcolors.FAIL + "Error: not enough option")
@@ -329,6 +378,7 @@ class Os:
             print(Bcolors.HEADER + "Useage:\n\trm [name] ...\n\trm -r [dir_name] ...")
         elif opt[1] == '-r':
             #Bug for 删除不空文件还没有递归归还inode
+            #通过 ban delete 不用文件完美解决!
             opt = opt[2:]
             current_name = self.get_current_name()
             new = list()
