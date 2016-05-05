@@ -8,6 +8,7 @@ from collections import deque
 
 BLOCK_NUM = 10000
 
+
 def count_inode(num):
     if num <= 10:
         return 0
@@ -23,9 +24,13 @@ def count_inode(num):
         n = (num - 41) // 5
         if n < 0:
             n = 0
-        if n % 5 == 0 and n != 0:
-            count += 1
+        for h in range(1, n+1):
+            if h % 5 == 0 and h != 0:
+                count += 1
+            if h % 25 == 0:
+                count += 2
         return n + count
+
 
 class SuperBlock:
     __slots__ = 'sup', 'block_num'
@@ -42,7 +47,6 @@ class SuperBlock:
             self.block_num -= 1
             return self.sup.pop()
         elif self.block_num == 1:
-            print ('test')
             temp = self.sup.pop()
             self.sup = temp.next_group
             self.block_num = 10
@@ -75,6 +79,7 @@ class SuperBlock:
                     print ("| {} |                  | {} |"\
                            .format(" " * len(str(self.sup[0].addr))),
                            " "*len(str(self.sup[0].next_group[0].addr)))
+
 
 class BlockManage(SuperBlock):
     class _Block:
@@ -109,6 +114,7 @@ class BlockManage(SuperBlock):
         for block in blocks:
             self.re_block(block)
         '''
+
 
 class Inode:
     __slots__ = 'length', 'block_list','node'
@@ -147,54 +153,6 @@ class Inode:
             else:
                 print (Bcolors.BOLD + "{}".format(temp[i].addr))
 
-
-    def show_blocks(self):
-        l = list()
-        cout = 0
-        temp = self.block_list
-        num = len(temp)
-        print (Bcolors.BOLD+"inode infomation\ntotal block: {} ".format(num)+Bcolors.ENDC)
-        for i in range(num):
-            l.append(temp[i].addr)
-            if i <= 9:
-                print ("\t| {} |".format(temp[i].addr))
-            if i == 9:
-                print (Bcolors.BOLD + "Single List: " + Bcolors.ENDC)
-                l = list()
-            if i <= 12 and i > 9:
-                print ("  index node: {}".format(self.node.popleft().addr), end='')
-                print ("\t\t| {} |".format(temp[i].addr))
-            if i == 12:
-                print (Bcolors.BOLD + "Double List:" + Bcolors.ENDC)
-                l = list()
-            if i <= 22 and i > 12:
-                if len(l) == 3:
-                    for a in l:
-                        print ("\t\t\t| {} |".format(a))
-                    print ("\t\t\t------")
-                    l = list()
-                if i + 2 >num:
-                    for a in l:
-                        print ("\t\t\t| {} |".format(a))
-                    print ("\t\t\t------")
-                    l = list()
-            if i == 22:
-                print (Bcolors.BOLD + "Triple List" + Bcolors.ENDC)
-            if i > 22:
-                if len(l) == 3:
-                    cout += 1
-                    for a in l:
-                        print ("\t\t\t\t| {} |".format(a))
-                    print ("\t\t\t\t------")
-                    l = list()
-                if i + 2 >num:
-                    for a in l:
-                        print ("\t\t\t\t| {} |".format(a))
-                    print ("\t\t\t\t------")
-                    l = list()
-                if cout == 3:
-                    print ('\n')
-                    cout = 0
 
 class Linkedfile:
     class _Node:
@@ -297,6 +255,7 @@ class Linkedfile:
             if temp.type == 2:
                     print ("d {:<5d} {} ".format(temp.size, temp.datetime), end='')
                     print (Bcolors.OKBLUE + "{}/".format(temp.name) + Bcolors.ENDC)
+
 
 class Os:
     def __init__(self):
@@ -493,6 +452,7 @@ class Os:
                 current_name.append(temp.name)
 
         return current_name
+
 
 class Bcolors:
     HEADER = '\033[95m'
