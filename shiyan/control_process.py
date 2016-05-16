@@ -418,10 +418,10 @@ class BankerAlgorithm(object):
         if p > (len(self.proList) - 1):  # p 程序号不大于已有程序号 issus: 没有对负数 字符型数过滤
             return False
         elif not self._is_valued(request, self.proList[p].need):  # 请求资源不大于程序需要的
-            print ("[-] Error: apply too many source")
+            print (Bcolors.FAIL + "[-] Error: apply too many source")
             return False
         elif not self._is_valued(request, self.available):  # 请求资源不大于目前空闲的资源
-            print ("[-] Error: apply too many source")
+            print (Bcolors.FAIL + "[-] Error: apply too many source")
             return False
         # 尝试将资源分配给进程p
         self._sub(self.available, request)
