@@ -87,10 +87,10 @@ class Algorithms(object):
 
         arr_t = arr_t.split()
         bur_t = bur_t.split()
-        for i in range(len(arr_t)):
-            self.ready.append(str(i), int(arr_t[i]), int(bur_t[i]))
+        for no, arrt in enumerate(arr_t):
+            self.ready.append(str(no), int(arrt), int(bur_t[no]))
             print ("[+]get new process {}, start: {} surver: {}"
-                   .format(str(i), arr_t[i], bur_t[i]))
+                   .format(str(no), arrt, bur_t[no]))
 
     def write_file(self):
         """ 计算周转时间和带权周转时间 
@@ -150,6 +150,37 @@ class Algorithms(object):
             systime += temp.bur_time  # 此时systime是做完一个进程之后的时间,正好是结束时间
             temp.fin_time = systime
             temp.calculate()  # 计算周转时间和带权周转时间 
+
+    def f(self):
+        """ 假设 给的队列不是按到达时间排好序的 那就用短作业优先的代码呗！
+        改个value 值就好啦！懒得优化了摸摸大！
+        """
+        temp = self.ready.head
+        sjfList = OrderedDict()
+        count = 0
+        systime = 0
+
+        if temp is None:
+            raise "Error: Empty Job List!"
+
+        while temp.next != None:
+            count += 1
+            temp = temp.next
+            sjfList[temp] = temp.arr_time
+
+        flag = True
+        for i in range(count):
+            min_p = min(sjfList, key=lambda k: sjfList[k])
+            if flag:
+                systime = min_p.arr_time
+                flag = False
+            if min_p.arr_time > systime:
+                systime = min_p.arr_time  # 最小作业但是系统时间为到作业到达时间 将作业到达时间赋给systime
+            min_p.beg_time = systime  # 开始时间为当前系统时间systime
+            systime += min_p.bur_time  # 此时systime是做完一个进程之后的时间,正好是结束时间
+            min_p.fin_time = systime
+            min_p.calculate()  # 计算周转时间和带权周转时间 
+            sjfList.pop(min_p)
 
     def sjfAlgorithms(self):
         """ SJF 短作业优先算法的实现 """
@@ -389,6 +420,8 @@ class BankerAlgorithm(object):
         """ 检查安全性 """
         work = self.available[:]
         count = 0
+        for i in self.proList:
+            i.flag= False
 
         while count != len(self.proList):
             flag = False
@@ -421,7 +454,7 @@ class BankerAlgorithm(object):
             print (Bcolors.FAIL + "[-] Error: apply too many source")
             return False
         elif not self._is_valued(request, self.available):  # 请求资源不大于目前空闲的资源
-            print (Bcolors.FAIL + "[-] Error: apply too many source")
+            print (Bcolors.FAIL + "[-] Error:  iapply too many source")
             return False
         # 尝试将资源分配给进程p
         self._sub(self.available, request)
@@ -466,13 +499,13 @@ def main():
                     request.append(int(i))
                 banker.do_request(cmd[0], request)
             elif cmd[0] == cmd_list[2]:
-                banker.is_safe()
+                print(banker.is_safe())
             elif cmd[0] == cmd_list[3]:
                 banker.show()
             cmd = input(Bcolors.DEEPGREEN + "Banker's Glory Shell" + Bcolors.ENDC + ">>>")
     job = Algorithms()
     if args.fcfs:
-        job.fcfsAlgorithms()
+        job.f()
         job.write_file()
     if args.sjf:
         job.sjfAlgorithms()
